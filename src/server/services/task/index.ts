@@ -21,6 +21,7 @@ import type { LobeChatDatabase } from '@/database/type';
 
 import { AiAgentService } from '../aiAgent';
 import { BriefService } from '../brief';
+import { extractFileIdsFromEditorData } from '../file/extractFileIdsFromEditorData';
 import { resolveAttachmentMetadata } from '../file/resolveAttachments';
 import { type SubtaskGraphPlan, TaskGraphService } from '../taskGraph';
 import { type ReviewResult, TaskReviewService } from '../taskReview';
@@ -405,30 +406,22 @@ export class TaskService {
       task = { ...task, error: null };
     }
 
-    const commentsPromise = this.taskModel.getComments(task.id).catch(() => []);
-    const commentFileIdsMapPromise = commentsPromise
-      .then((c) => this.taskModel.getCommentFileIdsMap(c.map((x) => x.id)))
-      .catch(() => ({}) as Record<string, string[]>);
-
-    const [
-      allDescendants,
-      dependencies,
-      topics,
-      briefs,
-      comments,
-      workspace,
-      taskFileIds,
-      commentFileIdsMap,
-    ] = await Promise.all([
+    const [allDescendants, dependencies, topics, briefs, comments, workspace] = await Promise.all([
       this.taskModel.findAllDescendants(task.id),
       this.taskModel.getDependencies(task.id),
       this.taskTopicModel.findWithHandoff(task.id, 100).catch(() => []),
       this.briefModel.findByTaskId(task.id).catch(() => []),
-      commentsPromise,
+      this.taskModel.getComments(task.id).catch(() => []),
       this.taskModel.getTreePinnedDocuments(task.id).catch(() => emptyWorkspace),
-      this.taskModel.getTaskFileIds(task.id).catch(() => [] as string[]),
-      commentFileIdsMapPromise,
     ]);
+
+    // Derive fileIds from persisted editor_data (single source of truth).
+    const taskFileIds = extractFileIdsFromEditorData(task.editorData);
+    const commentFileIdsMap: Record<string, string[]> = {};
+    for (const c of comments) {
+      const ids = extractFileIdsFromEditorData(c.editorData);
+      if (ids.length > 0) commentFileIdsMap[c.id] = ids;
+    }
 
     const allFileIds = [...taskFileIds, ...Object.values(commentFileIdsMap).flat()];
     const allFileMetadata = await resolveAttachmentMetadata({

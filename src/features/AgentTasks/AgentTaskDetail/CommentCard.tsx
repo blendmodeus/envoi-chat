@@ -80,11 +80,11 @@ const CommentCard = memo<CommentCardProps>(({ activity }) => {
     if (!commentId || submitting) return;
     const next = String(editor?.getDocument?.('markdown') ?? '').trim();
     const json = editor?.getDocument?.('json') as unknown;
-    const fileIds = getAttachmentFileIdsFromEditor(editor);
-    if (!next && fileIds.length === 0) return;
+    const hasFiles = getAttachmentFileIdsFromEditor(editor).length > 0;
+    if (!next && !hasFiles) return;
     setSubmitting(true);
     try {
-      await updateComment(commentId, next, { editorData: json, fileIds });
+      await updateComment(commentId, next, { editorData: json });
       setIsEditing(false);
     } finally {
       setSubmitting(false);

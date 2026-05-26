@@ -39,7 +39,6 @@ const createSchema = z.object({
   createdByAgentId: z.string().optional(),
   description: z.string().optional(),
   editorData: z.unknown().optional(),
-  fileIds: z.array(z.string()).optional(),
   identifierPrefix: z.string().optional(),
   instruction: z.string().min(1),
   name: z.string().optional(),
@@ -57,7 +56,6 @@ const updateSchema = z.object({
   context: z.record(z.unknown()).optional(),
   description: z.string().optional(),
   editorData: z.unknown().optional(),
-  fileIds: z.array(z.string()).optional(),
   // 0 clears the interval (disables heartbeat); any positive value must be
   // ≥600s (10 min) to match the UI minimum and prevent sub-minute ticks if an
   // LLM calls setTaskSchedule with a tiny number.
@@ -212,7 +210,6 @@ export const taskRouter = router({
         briefId: z.string().optional(),
         content: z.string().min(1),
         editorData: z.unknown().optional(),
-        fileIds: z.array(z.string()).optional(),
         id: z.string(),
         topicId: z.string().optional(),
       }),
@@ -228,7 +225,6 @@ export const taskRouter = router({
           briefId: input.briefId,
           content: input.content,
           editorData: input.editorData as never,
-          fileIds: input.fileIds,
           taskId: task.id,
           topicId: input.topicId,
           userId: ctx.userId,
@@ -271,14 +267,12 @@ export const taskRouter = router({
         commentId: z.string(),
         content: z.string().min(1),
         editorData: z.unknown().optional(),
-        fileIds: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       try {
         const comment = await ctx.taskModel.updateComment(input.commentId, input.content, {
           editorData: input.editorData,
-          fileIds: input.fileIds,
         });
         if (!comment) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Comment not found' });

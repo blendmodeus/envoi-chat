@@ -12,14 +12,7 @@ import { merge } from '@/utils/merge';
 
 import { documents } from '../schemas/file';
 import type { NewTaskComment, TaskCommentItem } from '../schemas/task';
-import {
-  taskComments,
-  taskCommentsFiles,
-  taskDependencies,
-  taskDocuments,
-  tasks,
-  tasksFiles,
-} from '../schemas/task';
+import { taskComments, taskDependencies, taskDocuments, tasks } from '../schemas/task';
 import type { LobeChatDatabase } from '../type';
 
 export class TaskModel {
@@ -35,43 +28,34 @@ export class TaskModel {
 
   async create(
     data: Omit<NewTask, 'id' | 'identifier' | 'seq' | 'createdByUserId'> & {
-      fileIds?: string[];
       identifierPrefix?: string;
     },
   ): Promise<TaskItem> {
-    const { identifierPrefix = 'T', fileIds, ...rest } = data;
+    const { identifierPrefix = 'T', ...rest } = data;
 
     // Retry loop to handle concurrent creates (parallel tool calls)
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        // Wrap the parent insert + junction-table insert in one transaction so
-        // a fileIds insertion failure rolls back the orphan task row.
-        return await this.db.transaction(async (trx) => {
-          const seqResult = await trx
-            .select({ maxSeq: sql<number>`COALESCE(MAX(${tasks.seq}), 0)` })
-            .from(tasks)
-            .where(eq(tasks.createdByUserId, this.userId));
+        const seqResult = await this.db
+          .select({ maxSeq: sql<number>`COALESCE(MAX(${tasks.seq}), 0)` })
+          .from(tasks)
+          .where(eq(tasks.createdByUserId, this.userId));
 
-          const nextSeq = Number(seqResult[0].maxSeq) + 1;
-          const identifier = `${identifierPrefix}-${nextSeq}`;
+        const nextSeq = Number(seqResult[0].maxSeq) + 1;
+        const identifier = `${identifierPrefix}-${nextSeq}`;
 
-          const [task] = await trx
-            .insert(tasks)
-            .values({
-              ...rest,
-              createdByUserId: this.userId,
-              identifier,
-              seq: nextSeq,
-            } as NewTask)
-            .returning();
+        const [task] = await this.db
+          .insert(tasks)
+          .values({
+            ...rest,
+            createdByUserId: this.userId,
+            identifier,
+            seq: nextSeq,
+          } as NewTask)
+          .returning();
 
-          if (fileIds && fileIds.length > 0) {
-            await this.replaceTaskFilesIn(trx, task.id, fileIds);
-          }
-
-          return task;
-        });
+        return task;
       } catch (error: any) {
         // Retry on unique constraint violation (concurrent seq conflict)
         // Check error itself, cause, and stringified message for PG error code 23505
@@ -127,28 +111,16 @@ export class TaskModel {
 
   async update(
     id: string,
-    data: Partial<Omit<NewTask, 'id' | 'identifier' | 'seq' | 'createdByUserId'>> & {
-      fileIds?: string[];
-    },
+    data: Partial<Omit<NewTask, 'id' | 'identifier' | 'seq' | 'createdByUserId'>>,
   ): Promise<TaskItem | null> {
-    const { fileIds, ...rest } = data;
-    // Touch `updatedAt` even when only fileIds change so consumers polling for
-    // task changes see attachment updates.
-    const shouldTouchRow = Object.keys(rest).length > 0 || fileIds !== undefined;
-    if (!shouldTouchRow) return this.findById(id);
+    if (Object.keys(data).length === 0) return this.findById(id);
 
-    return this.db.transaction(async (trx) => {
-      const updated = await trx
-        .update(tasks)
-        .set({ ...rest, updatedAt: new Date() })
-        .where(and(eq(tasks.id, id), eq(tasks.createdByUserId, this.userId)))
-        .returning();
-      const task = updated[0] || null;
-      if (fileIds && task) {
-        await this.replaceTaskFilesIn(trx, id, fileIds);
-      }
-      return task;
-    });
+    const updated = await this.db
+      .update(tasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(tasks.id, id), eq(tasks.createdByUserId, this.userId)))
+      .returning();
+    return updated[0] || null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -765,20 +737,10 @@ export class TaskModel {
 
   // ========== Comments ==========
 
-  async addComment(
-    data: Omit<NewTaskComment, 'id'> & { fileIds?: string[] },
-  ): Promise<TaskCommentItem> {
-    const { fileIds, ...rest } = data;
-    return this.db.transaction(async (trx) => {
-      const [comment] = await trx.insert(taskComments).values(rest).returning();
-      if (fileIds && fileIds.length > 0) {
-        await this.replaceCommentFilesIn(trx, comment.id, fileIds);
-      }
-      return comment;
-    });
+  async addComment(data: Omit<NewTaskComment, 'id'>): Promise<TaskCommentItem> {
+    const [comment] = await this.db.insert(taskComments).values(data).returning();
+    return comment;
   }
-
-  // ========== Comments ==========
 
   async getComments(taskId: string): Promise<TaskCommentItem[]> {
     return this.db
@@ -792,7 +754,6 @@ export class TaskModel {
     const result = await this.db
       .delete(taskComments)
       .where(and(eq(taskComments.id, id), eq(taskComments.userId, this.userId)))
-
       .returning();
     return result.length > 0;
   }
@@ -800,86 +761,17 @@ export class TaskModel {
   async updateComment(
     id: string,
     content: string,
-    opts?: { editorData?: unknown; fileIds?: string[] },
+    opts?: { editorData?: unknown },
   ): Promise<TaskCommentItem | undefined> {
-    return this.db.transaction(async (trx) => {
-      const [comment] = await trx
-        .update(taskComments)
-        .set({
-          content,
-          ...(opts?.editorData !== undefined ? { editorData: opts.editorData as never } : {}),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(taskComments.id, id), eq(taskComments.userId, this.userId)))
-        .returning();
-      if (comment && opts?.fileIds !== undefined) {
-        await this.replaceCommentFilesIn(trx, comment.id, opts.fileIds);
-      }
-      return comment;
-    });
-  }
-
-  // ========== Files ==========
-
-  /**
-   * Replace the set of files attached to a task with the given list (idempotent).
-   * Empty array clears all attachments. `fileIds: undefined` is not supported —
-   * callers should skip calling this method when they mean "leave untouched".
-   */
-  async setTaskFiles(taskId: string, fileIds: string[]): Promise<void> {
-    await this.db.transaction((trx) => this.replaceTaskFilesIn(trx, taskId, fileIds));
-  }
-
-  async setCommentFiles(commentId: string, fileIds: string[]): Promise<void> {
-    await this.db.transaction((trx) => this.replaceCommentFilesIn(trx, commentId, fileIds));
-  }
-
-  private async replaceTaskFilesIn(
-    trx: LobeChatDatabase,
-    taskId: string,
-    fileIds: string[],
-  ): Promise<void> {
-    await trx.delete(tasksFiles).where(eq(tasksFiles.taskId, taskId));
-    if (fileIds.length === 0) return;
-    await trx
-      .insert(tasksFiles)
-      .values(fileIds.map((fileId) => ({ fileId, taskId, userId: this.userId })));
-  }
-
-  private async replaceCommentFilesIn(
-    trx: LobeChatDatabase,
-    commentId: string,
-    fileIds: string[],
-  ): Promise<void> {
-    await trx.delete(taskCommentsFiles).where(eq(taskCommentsFiles.commentId, commentId));
-    if (fileIds.length === 0) return;
-    await trx
-      .insert(taskCommentsFiles)
-      .values(fileIds.map((fileId) => ({ commentId, fileId, userId: this.userId })));
-  }
-
-  async getTaskFileIds(taskId: string): Promise<string[]> {
-    const rows = await this.db
-      .select({ fileId: tasksFiles.fileId })
-      .from(tasksFiles)
-      .where(eq(tasksFiles.taskId, taskId));
-    return rows.map((r) => r.fileId);
-  }
-
-  /**
-   * Bulk-load fileIds for a set of comments. Returns commentId → fileIds[].
-   */
-  async getCommentFileIdsMap(commentIds: string[]): Promise<Record<string, string[]>> {
-    if (commentIds.length === 0) return {};
-    const rows = await this.db
-      .select({ commentId: taskCommentsFiles.commentId, fileId: taskCommentsFiles.fileId })
-      .from(taskCommentsFiles)
-      .where(inArray(taskCommentsFiles.commentId, commentIds));
-
-    const map: Record<string, string[]> = {};
-    for (const row of rows) {
-      (map[row.commentId] ??= []).push(row.fileId);
-    }
-    return map;
+    const [comment] = await this.db
+      .update(taskComments)
+      .set({
+        content,
+        ...(opts?.editorData !== undefined ? { editorData: opts.editorData as never } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(taskComments.id, id), eq(taskComments.userId, this.userId)))
+      .returning();
+    return comment;
   }
 }

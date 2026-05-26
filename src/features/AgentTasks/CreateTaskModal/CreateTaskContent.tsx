@@ -66,8 +66,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
 
     const handleSubmit = useCallback(async () => {
       const instruction = instructionRef.current.trim();
-      const fileIds = getAttachmentFileIdsFromEditor(editor);
-      const hasFiles = fileIds.length > 0;
+      const hasFiles = getAttachmentFileIdsFromEditor(editor).length > 0;
       if (!instruction && !title.trim() && !hasFiles) return;
 
       const editorJson = editor?.getDocument?.('json') as unknown;
@@ -75,7 +74,6 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
       const result = await createTask({
         assigneeAgentId,
         editorData: editorJson,
-        fileIds: hasFiles ? fileIds : undefined,
         instruction: instruction || title.trim(),
         name: title.trim() || undefined,
         priority: priority || undefined,

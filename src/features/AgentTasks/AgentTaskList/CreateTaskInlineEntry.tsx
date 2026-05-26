@@ -88,10 +88,9 @@ const CreateTaskInlineEntry = memo<CreateTaskInlineEntryProps>((props) => {
   }, [editor]);
 
   const handleSubmit = useCallback(async () => {
-    const fileIds = getAttachmentFileIdsFromEditor(editor);
     const markdown = String(editor?.getDocument?.('markdown') ?? '').trim();
     const trimmedText = instruction.trim();
-    const hasFiles = fileIds.length > 0;
+    const hasFiles = getAttachmentFileIdsFromEditor(editor).length > 0;
     if (!trimmedText && !markdown && !hasFiles) return;
 
     const firstLine =
@@ -109,7 +108,6 @@ const CreateTaskInlineEntry = memo<CreateTaskInlineEntryProps>((props) => {
     const result = await createTask({
       assigneeAgentId,
       editorData: editorJson,
-      fileIds: hasFiles ? fileIds : undefined,
       instruction: markdown || trimmedText || name || '',
       name,
       parentTaskId,

@@ -6,10 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { EditorCanvas } from '@/features/EditorCanvas';
 import { seedAttachments } from '@/features/EditorCanvas/attachmentRegistry';
-import {
-  getAttachmentFileIdsFromJson,
-  pickAndInsertAttachments,
-} from '@/features/EditorCanvas/editorAttachments';
+import { pickAndInsertAttachments } from '@/features/EditorCanvas/editorAttachments';
 import { useTaskStore } from '@/store/task';
 import { taskDetailSelectors } from '@/store/task/selectors';
 
@@ -69,8 +66,7 @@ const TaskInstruction = memo(() => {
       lastSavedJsonRef.current = jsonSignature;
 
       const markdown = String(editor.getDocument('markdown') ?? '');
-      const fileIds = getAttachmentFileIdsFromJson(json);
-      updateTask(taskId, { editorData: json, fileIds, instruction: markdown }).catch((e) => {
+      updateTask(taskId, { editorData: json, instruction: markdown }).catch((e) => {
         console.error('[TaskInstruction] Failed to save:', e);
       });
     }, DEBOUNCE_MS);

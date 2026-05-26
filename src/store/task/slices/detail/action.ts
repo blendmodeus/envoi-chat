@@ -24,7 +24,6 @@ export interface TaskUpdatePayload {
   assigneeAgentId?: string | null;
   description?: string;
   editorData?: unknown;
-  fileIds?: string[];
   instruction?: string;
   name?: string;
   parentTaskId?: string | null;
@@ -71,7 +70,6 @@ export class TaskDetailSliceActionImpl {
       authorAgentId?: string;
       briefId?: string;
       editorData?: unknown;
-      fileIds?: string[];
       topicId?: string;
     },
   ): Promise<Awaited<ReturnType<typeof taskService.addComment>>> => {
@@ -89,7 +87,7 @@ export class TaskDetailSliceActionImpl {
   updateComment = async (
     commentId: string,
     content: string,
-    opts?: { editorData?: unknown; fileIds?: string[]; taskId?: string },
+    opts?: { editorData?: unknown; taskId?: string },
   ): Promise<void> => {
     const { taskId, ...rest } = opts ?? {};
     await taskService.updateComment(commentId, content, rest);
@@ -145,7 +143,6 @@ export class TaskDetailSliceActionImpl {
     createdByAgentId?: string;
     description?: string;
     editorData?: unknown;
-    fileIds?: string[];
     instruction: string;
     name?: string;
     parentTaskId?: string;

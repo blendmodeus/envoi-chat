@@ -5,6 +5,7 @@ import type { BriefModel } from '@/database/models/brief';
 import type { TaskModel } from '@/database/models/task';
 import type { TaskTopicModel } from '@/database/models/taskTopic';
 import type { LobeChatDatabase } from '@/database/type';
+import { extractFileIdsFromEditorData } from '@/server/services/file/extractFileIdsFromEditorData';
 import { resolveAttachmentMetadata } from '@/server/services/file/resolveAttachments';
 
 export interface BuildTaskPromptDeps {
@@ -36,37 +37,28 @@ export async function buildTaskPrompt(
 ): Promise<BuiltTaskPrompt> {
   const { briefModel, db, taskModel, taskTopicModel, userId } = deps;
 
-  // Comment fileIds need `comments` to resolve first; chain it eagerly so it
-  // runs in parallel with the rest of the `Promise.all` siblings instead of
-  // serializing after them.
-  const commentsPromise = taskModel.getComments(task.id).catch(() => []);
-  const commentFileIdsMapPromise = commentsPromise
-    .then((c) => taskModel.getCommentFileIdsMap(c.map((x: any) => x.id)))
-    .catch(() => ({}) as Record<string, string[]>);
-
-  const [
-    topics,
-    briefs,
-    comments,
-    subtasks,
-    dependencies,
-    documents,
-    taskFileIds,
-    commentFileIdsMap,
-  ] = await Promise.all([
+  const [topics, briefs, comments, subtasks, dependencies, documents] = await Promise.all([
     task.totalTopics && task.totalTopics > 0
       ? taskTopicModel.findWithHandoff(task.id, 4).catch(() => [])
       : Promise.resolve([]),
     briefModel.findByTaskId(task.id).catch(() => []),
-    commentsPromise,
+    taskModel.getComments(task.id).catch(() => []),
     taskModel.findSubtasks(task.id).catch(() => []),
     taskModel.getDependencies(task.id).catch(() => []),
     taskModel
       .getTreePinnedDocuments(task.id)
       .catch((): WorkspaceData => ({ nodeMap: {}, tree: [] })),
-    taskModel.getTaskFileIds(task.id).catch(() => [] as string[]),
-    commentFileIdsMapPromise,
   ]);
+
+  // Derive fileIds from the persisted Lexical state. editor_data is the
+  // single source of truth — fileId is recoverable from each image/file
+  // node's URL (proxy URL `/f/{fileId}` contract from file router).
+  const taskFileIds = extractFileIdsFromEditorData(task.editorData);
+  const commentFileIdsMap: Record<string, string[]> = {};
+  for (const c of comments) {
+    const ids = extractFileIdsFromEditorData(c.editorData);
+    if (ids.length > 0) commentFileIdsMap[c.id] = ids;
+  }
 
   // Metadata-only lookup (name + fileType) for prompt rendering. Full content
   // for the agent comes via `execAgent.fileIds` → `resolveAttachmentsByFileIds`.

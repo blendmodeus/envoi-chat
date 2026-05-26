@@ -5,7 +5,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   uniqueIndex,
   uuid,
@@ -15,7 +14,7 @@ import { idGenerator } from '../utils/idGenerator';
 import { createdAt, timestamps, timestamptz, varchar255 } from './_helpers';
 import { agents } from './agent';
 import { agentCronJobs } from './agentCronJob';
-import { documents, files } from './file';
+import { documents } from './file';
 import { topics } from './topic';
 import { users } from './user';
 
@@ -318,55 +317,3 @@ export const taskComments = pgTable(
 
 export type NewTaskComment = typeof taskComments.$inferInsert;
 export type TaskCommentItem = typeof taskComments.$inferSelect;
-
-// ── Task ↔ Files ────────────────────────────────────────
-// Files attached to a task's instruction (persistent context for every run).
-
-export const tasksFiles = pgTable(
-  'tasks_files',
-  {
-    fileId: text('file_id')
-      .notNull()
-      .references(() => files.id, { onDelete: 'cascade' }),
-    taskId: text('task_id')
-      .notNull()
-      .references(() => tasks.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-  },
-  (t) => [
-    primaryKey({ columns: [t.fileId, t.taskId] }),
-    index('tasks_files_task_id_idx').on(t.taskId),
-    index('tasks_files_user_id_idx').on(t.userId),
-  ],
-);
-
-export type NewTaskFile = typeof tasksFiles.$inferInsert;
-export type TaskFileItem = typeof tasksFiles.$inferSelect;
-
-// ── Task Comment ↔ Files ────────────────────────────────
-// Files attached to a single comment (travels with that comment).
-
-export const taskCommentsFiles = pgTable(
-  'task_comments_files',
-  {
-    fileId: text('file_id')
-      .notNull()
-      .references(() => files.id, { onDelete: 'cascade' }),
-    commentId: text('comment_id')
-      .notNull()
-      .references(() => taskComments.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-  },
-  (t) => [
-    primaryKey({ columns: [t.fileId, t.commentId] }),
-    index('task_comments_files_comment_id_idx').on(t.commentId),
-    index('task_comments_files_user_id_idx').on(t.userId),
-  ],
-);
-
-export type NewTaskCommentFile = typeof taskCommentsFiles.$inferInsert;
-export type TaskCommentFileItem = typeof taskCommentsFiles.$inferSelect;

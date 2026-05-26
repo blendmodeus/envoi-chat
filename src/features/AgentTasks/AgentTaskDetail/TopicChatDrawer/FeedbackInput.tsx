@@ -62,14 +62,13 @@ const FeedbackInput = memo<FeedbackInputProps>(({ taskId, topicId }) => {
     if (submitting) return;
     const json = editor?.getDocument?.('json') as unknown;
     const markdown = String(editor?.getDocument?.('markdown') ?? '').trim();
-    const fileIds = getAttachmentFileIdsFromEditor(editor);
-    if (!markdown && fileIds.length === 0) return;
+    const hasFiles = getAttachmentFileIdsFromEditor(editor).length > 0;
+    if (!markdown && !hasFiles) return;
 
     setSubmitting(true);
     try {
       await addComment(taskId, markdown, {
         editorData: json,
-        fileIds: fileIds.length > 0 ? fileIds : undefined,
         topicId,
       });
       // Start a NEW topic run that picks up the comment we just attached to the
