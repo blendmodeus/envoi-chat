@@ -11,6 +11,8 @@ export const DEFAULT_COMMON_SETTINGS: UserGeneralConfig = {
   isDevMode: false,
   isLiteMode: false,
   mermaidTheme: 'lobe-theme',
+  neutralColor: 'mauve',
+  primaryColor: 'cyan',
   telemetry: true,
   transitionMode: 'fadeIn',
 };
