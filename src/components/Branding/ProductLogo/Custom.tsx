@@ -72,7 +72,9 @@ const Divider: IconType = (({ ref, size = '1em', style, ...rest }) => (
 const CustomLogo = memo<LobeChatProps>(({ extra, size = 32, className, style, type, ...rest }) => {
   let logoComponent: ReactNode;
 
-  switch (type) {
+  const resolvedType = BRANDING_LOGO_URL ? type : 'text';
+
+  switch (resolvedType) {
     case '3d':
     case 'flat': {
       logoComponent = <CustomImageLogo size={size} style={style} {...rest} />;

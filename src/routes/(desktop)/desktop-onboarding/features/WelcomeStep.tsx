@@ -10,8 +10,11 @@ import { BrainIcon, HeartHandshakeIcon, PencilRulerIcon } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { BRANDING_NAME } from '@lobechat/business-const';
+
 import { ProductLogo } from '@/components/Branding';
 import { useUserStore } from '@/store/user';
+
 
 interface WelcomeStepProps {
   onNext: () => void;
@@ -60,7 +63,7 @@ const WelcomeStep = memo<WelcomeStepProps>(({ onNext }) => {
             pauseDuration={16_000}
             typingSpeed={64}
             sentences={[
-              t('telemetry.title', { name: 'Lobe AI' }),
+              t('telemetry.title', { name: BRANDING_NAME }),
               t('telemetry.title2'),
               t('telemetry.title3'),
             ]}

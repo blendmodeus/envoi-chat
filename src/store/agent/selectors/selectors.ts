@@ -1,4 +1,4 @@
-import { DEFAULT_PROVIDER } from '@lobechat/business-const';
+import { BRANDING_LOGO_URL, DEFAULT_PROVIDER } from '@lobechat/business-const';
 import {
   DEFAULT_AGENT_CONFIG,
   DEFAULT_AVATAR,
@@ -28,6 +28,18 @@ import { builtinAgentSelectors } from './builtinAgentSelectors';
 
 // ==========   Meta   ============== //
 
+const sanitizeAvatar = (avatar?: string): string => {
+  if (!avatar) return '🤖';
+  if (avatar.startsWith('/avatars/')) {
+    if (avatar.includes('lobe-ai')) return BRANDING_LOGO_URL || '🤖';
+    if (avatar.includes('doc-copilot')) return '📄';
+    if (avatar.includes('agent-builder')) return '🛠️';
+    if (avatar.includes('agent-default')) return '🤖';
+    return BRANDING_LOGO_URL || '🤖';
+  }
+  return avatar;
+};
+
 const currentAgentData = (s: AgentStoreState) =>
   s.activeAgentId ? s.agentMap[s.activeAgentId] : undefined;
 
@@ -36,11 +48,11 @@ const currentAgentTitle = (s: AgentStoreState) => currentAgentData(s)?.title;
 const getDefaultAvatarByAgentId = (s: AgentStoreState, agentId?: string) => {
   const inboxAgentId = builtinAgentSelectors.inboxAgentId(s);
 
-  return agentId && inboxAgentId === agentId ? DEFAULT_INBOX_AVATAR : DEFAULT_AVATAR;
+  return sanitizeAvatar(agentId && inboxAgentId === agentId ? DEFAULT_INBOX_AVATAR : DEFAULT_AVATAR);
 };
 
 const currentAgentAvatar = (s: AgentStoreState) =>
-  currentAgentData(s)?.avatar || getDefaultAvatarByAgentId(s, s.activeAgentId);
+  sanitizeAvatar(currentAgentData(s)?.avatar || getDefaultAvatarByAgentId(s, s.activeAgentId));
 
 const currentAgentDescription = (s: AgentStoreState) => currentAgentData(s)?.description;
 
@@ -56,7 +68,7 @@ const currentAgentTags = (s: AgentStoreState) => currentAgentData(s)?.tags || []
 const currentAgentMeta = (s: AgentStoreState): MetaData => {
   const data = currentAgentData(s);
   return {
-    avatar: data?.avatar || getDefaultAvatarByAgentId(s, s.activeAgentId),
+    avatar: sanitizeAvatar(data?.avatar || getDefaultAvatarByAgentId(s, s.activeAgentId)),
     backgroundColor: data?.backgroundColor || DEFAULT_BACKGROUND_COLOR,
     description: data?.description || undefined,
     marketIdentifier: data?.marketIdentifier || undefined,
@@ -76,7 +88,7 @@ const getAgentMetaById =
     if (!data) return {};
 
     return {
-      avatar: data.avatar || getDefaultAvatarByAgentId(s, agentId),
+      avatar: sanitizeAvatar(data.avatar || getDefaultAvatarByAgentId(s, agentId)),
       backgroundColor: data.backgroundColor || DEFAULT_BACKGROUND_COLOR,
       description: data.description || undefined,
       marketIdentifier: data.marketIdentifier || undefined,

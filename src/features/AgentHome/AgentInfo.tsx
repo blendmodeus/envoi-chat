@@ -1,5 +1,6 @@
 'use client';
 
+import { BRANDING_NAME } from '@lobechat/business-const';
 import { Avatar, Flexbox, Markdown, Skeleton, Text } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import { memo, useMemo } from 'react';
@@ -20,7 +21,7 @@ const AgentInfo = memo(() => {
   const fontSize = useUserStore(userGeneralSettingsSelectors.fontSize);
 
   const displayTitle = isInbox
-    ? meta.title || 'Lobe AI'
+    ? meta.title || BRANDING_NAME
     : meta.title || t('defaultSession', { ns: 'common' });
 
   const message = useMemo(() => {
